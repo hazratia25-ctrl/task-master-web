@@ -15,6 +15,9 @@ function App() {
   const [projectId, setProjectId] = useState("");
   const [project, setProject] = useState<ProjectState | null>(null);
   const [title, setTitle] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authMessage, setAuthMessage] = useState("");
   const [sync, setSync] = useState("Ready");
 
   useEffect(() => {
@@ -49,7 +52,19 @@ function App() {
     setProject((old) => old && ({ ...old, tasks: old.tasks.map((x) => x.id === next.id ? next : x) }));
     try { await saveTask(next); } catch { setSync("Offline queue"); }
   };
-  if (!signedIn) return <main><h1>Task Master</h1><p>Sign in to collaborate and sync projects.</p><button onClick={() => void supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin } })}>Sign in with Google</button></main>;
+  const signIn = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setAuthMessage("");
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) setAuthMessage(error.message);
+  };
+  const signUp = async () => {
+    setAuthMessage("");
+    const { error } = await supabase.auth.signUp({ email, password });
+    setAuthMessage(error ? error.message : "Account created. Check your email if confirmation is enabled.");
+  };
+  if (!signedIn) return <main><h1>Task Master</h1><p>Sign in directly with your email to collaborate online.</p><form onSubmit={signIn}><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required /><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" minLength={6} required /><button>Sign in</button><button type="button" onClick={() => void signUp()}>Create account</button></form>{authMessage && <p>{authMessage}</p>}</main>;
   return <main><header><h1>Task Master</h1><small>{sync}</small><button onClick={() => void supabase.auth.signOut()}>Sign out</button></header><section className="bar"><input value={projectId} onChange={(e) => setProjectId(e.target.value)} placeholder="Project id"/><button onClick={() => void createProject("New project").then((p) => setProjectId(p.id))}>New project</button></section>{project && <><h2>{project.project.title}</h2><p>{metrics.done} of {metrics.total} completed</p><form onSubmit={addTask}><input value={title} onChange={(e) => setTitle(e.target.value)} disabled={!canEdit} placeholder="New task"/><button disabled={!canEdit}>Add</button></form><ul>{project.tasks.map((task) => <li key={task.id}><label><input type="checkbox" checked={task.status === "COMPLETED"} disabled={!canEdit} onChange={() => void toggle(task)}/>{task.title}</label>{canEdit && <button onClick={() => { setProject((old) => old && ({ ...old, tasks: old.tasks.filter((x) => x.id !== task.id) })); void deleteTask(task.id).catch(() => setSync("Offline queue")); }}>Delete</button>}</li>)}</ul></>}</main>;
 }
 createRoot(document.getElementById("root")!).render(<React.StrictMode><App/></React.StrictMode>);
+
